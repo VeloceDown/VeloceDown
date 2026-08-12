@@ -1,143 +1,105 @@
 const express = require("express");
 const multer = require("multer");
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const crypto = require("crypto");
-const { spawn } = require("child_process");
-const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
+const { execFile } = require("child_process");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROOT = __dirname;
-const TMP = path.join(ROOT, "tmp");
-const OUT = path.join(ROOT, "output");
 
-fs.mkdirSync(TMP, { recursive: true });
-fs.mkdirSync(OUT, { recursive: true });
-
-app.use(express.json());
-app.use(express.static(ROOT));
+const uploadDir = path.join(os.tmpdir(), "velocedown-uploads");
+const outputDir = path.join(os.tmpdir(), "velocedown-output");
+fs.mkdirSync(uploadDir, { recursive: true });
+fs.mkdirSync(outputDir, { recursive: true });
 
 const upload = multer({
-  dest: TMP,
-  limits: {
-    fileSize: 2 * 1024 * 1024 * 1024
-  }
+  dest: uploadDir,
+  limits: { fileSize: 1024 * 1024 * 1024 }
 });
 
-app.get("/api/health", (_, res) => {
-  res.json({
-    ok: true,
-    service: "VeloceDown"
-  });
-});
+const files = new Map();
 
-app.get("/api/info", async (req, res) => {
-  const url = String(req.query.url || "");
+function safeFilename(name) {
+  return (name || "VeloceDown audio")
+    .replace(/\.[^/.]+$/, "")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180) || "VeloceDown audio";
+}
 
-  if (!/^https?:\/\//i.test(url)) {
-    return res.status(400).json({
-      error: "Invalid URL"
-    });
-  }
-
-  res.json({
-    title: "VeloceDown source",
-    formats: [
-      {
-        id: "best",
-        label: "Best available",
-        ext: "MP4",
-        requiresAd: true
-      },
-      {
-        id: "720p",
-        label: "720p",
-        ext: "MP4",
-        requiresAd: false
-      },
-      {
-        id: "1080p",
-        label: "1080p / Full HD",
-        ext: "MP4",
-        requiresAd: true
-      },
-      {
-        id: "mp3",
-        label: "MP3 audio",
-        ext: "MP3",
-        requiresAd: false
-      }
-    ]
-  });
-});
+app.use(express.static(__dirname));
 
 app.post("/api/extract-mp3", upload.single("video"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({
-      error: "No video uploaded"
-    });
-  }
+  if (!req.file) return res.status(400).json({ error: "No video was uploaded." });
 
-  const id = crypto.randomBytes(12).toString("hex");
-  const output = path.join(OUT, `${id}.mp3`);
+  const displayName = `${safeFilename(req.file.originalname)}.mp3`;
+  const token = crypto.randomBytes(24).toString("hex");
+  const outputPath = path.join(outputDir, `${token}.mp3`);
 
-  const ffmpeg = spawn(ffmpegPath, [
-    "-y",
-    "-i",
-    req.file.path,
-    "-vn",
-    "-codec:a",
-    "libmp3lame",
-    "-q:a",
-    "2",
-    output
-  ]);
+  execFile("ffmpeg", [
+    "-y", "-i", req.file.path,
+    "-vn", "-codec:a", "libmp3lame", "-q:a", "2",
+    outputPath
+  ], (error, stdout, stderr) => {
+    fs.unlink(req.file.path, () => {});
 
-  let stderr = "";
-
-  ffmpeg.stderr.on("data", data => {
-    stderr += data.toString();
-  });
-
-  ffmpeg.on("close", code => {
-    fs.rm(req.file.path, {
-      force: true
-    }, () => {});
-
-    if (code !== 0) {
+    if (error) {
       console.error(stderr);
-
       return res.status(500).json({
-        error: "FFmpeg conversion failed"
+        error: "Audio extraction failed. Make sure the video contains an audio track."
       });
     }
 
+    files.set(token, {
+      path: outputPath,
+      filename: displayName,
+      created: Date.now()
+    });
+
     res.json({
-      downloadUrl: `/api/file/${path.basename(output)}`
+      url: `/api/download/${token}`,
+      filename: displayName
     });
   });
 });
 
-app.get("/api/file/:name", (req, res) => {
-  const name = path.basename(req.params.name);
-  const file = path.join(OUT, name);
-
-  if (!fs.existsSync(file)) {
-    return res.status(404).end();
+app.get("/api/download/:token", (req, res) => {
+  const item = files.get(req.params.token);
+  if (!item || !fs.existsSync(item.path)) {
+    return res.status(404).send("File not found or expired.");
   }
 
-  res.download(file, name, err => {
-    fs.rm(file, {
-      force: true
-    }, () => {});
-
-    if (err) {
-      console.error("Download error:", err.message);
+  res.download(item.path, item.filename, (err) => {
+    if (!err) {
+      fs.unlink(item.path, () => {});
+      files.delete(req.params.token);
     }
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`VeloceDown listening on port ${PORT}`);
+// Remove abandoned output files after 30 minutes.
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [token, item] of files) {
+    if (item.created < cutoff) {
+      fs.unlink(item.path, () => {});
+      files.delete(token);
+    }
+  }
+}, 5 * 60 * 1000);
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      error: err.code === "LIMIT_FILE_SIZE" ? "File is too large." : err.message
+    });
+  }
+  console.error(err);
+  res.status(500).json({ error: "Server error." });
 });
+
+app.listen(PORT, () => console.log(`VeloceDown listening on port ${PORT}`));
+
