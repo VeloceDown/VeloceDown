@@ -73,15 +73,20 @@ const quality = allowedQualities.includes(req.body.quality)
     });
 
     const ffmpeg = require("child_process").spawn("ffmpeg", [
-      "-y",
-      "-i", req.file.path,
-      "-vn",
-     "-codec:a", "libmp3lame",
-"-b:a", `${quality}k`,
-      "-progress", "pipe:1",
-      "-nostats",
-      outputPath
-    ]);
+  "-y",
+  "-i", req.file.path,
+  "-vn",
+  "-codec:a", "libmp3lame",
+  "-b:a", `${quality}k`,
+  "-minrate", `${quality}k`,
+  "-maxrate", `${quality}k`,
+  "-bufsize", `${Number(quality) * 2}k`,
+  "-ar", "44100",
+  "-ac", "2",
+  "-progress", "pipe:1",
+  "-nostats",
+  outputPath
+]);
 
     let progressBuffer = "";
 
