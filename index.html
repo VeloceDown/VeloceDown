@@ -123,7 +123,32 @@ color:#687792; font-size:12px; text-transform:uppercase; letter-spacing:.5px;
 .actions { display:flex; justify-content:center; margin-top:16px; }
 
 .status { margin-top:14px; text-align:center; color:#b8c4db; }
+.progress-container {
+  margin-top: 16px;
+}
 
+.progress-bar {
+  width: 100%;
+  height: 18px;
+  background: #202c45;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: #35d5c6;
+  transition: width .2s ease;
+}
+
+.progress-text {
+  margin-top: 8px;
+  text-align: center;
+  color: #9eabc5;
+  font-size: 14px;
+}
+  
 .result {
 margin-top:16px; padding:16px; border-radius:14px; background:#0a1323;
 border:1px solid #253552; text-align:center;
@@ -257,7 +282,13 @@ footer { padding:30px 0 45px; color:#687792; text-align:center; font-size:13px; 
 </div>
 
 <div id="extractStatus" class="status"></div>
-
+<div id="progressContainer" class="progress-container hidden">
+  <div class="progress-bar">
+    <div id="progressFill" class="progress-fill"></div>
+  </div>
+  <div id="progressText" class="progress-text">0%</div>
+</div>
+  
 <div id="extractResult" class="result hidden"></div>
 
 </section>
@@ -374,46 +405,159 @@ dropZone.classList.remove("drag");
 
 dropZone.addEventListener("drop", e => setFile(e.dataTransfer.files[0]));
 
-extractBtn.addEventListener("click", async () => {
+extractBtn.addEventListener("click", () => {
 
-const file = videoFile.files[0];
+  const file = videoFile.files[0];
 
-if (!file) return;
+  if (!file) return;
 
-extractBtn.disabled = true;
+  extractBtn.disabled = true;
+  extractStatus.textContent = "Uploading…";
+  extractResult.classList.add("hidden");
 
-extractStatus.textContent = "Uploading and extracting audio… Please keep this page open.";
+  const progressContainer = $("progressContainer");
+  const progressFill = $("progressFill");
+  const progressText = $("progressText");
 
-extractResult.classList.add("hidden");
+  progressContainer.classList.remove("hidden");
+  progressFill.style.width = "0%";
+  progressText.textContent = "Uploading… 0%";
 
-const form = new FormData();
+  const xhr = new XMLHttpRequest();
 
-form.append("video", file);
+  xhr.open("POST", "/api/extract-mp3");
 
-try {
+  // REAL upload progress
+  xhr.upload.addEventListener("progress", event => {
 
-const response = await fetch("/api/extract-mp3", { method: "POST", body: form });
+    if (!event.lengthComputable) return;
 
-const data = await response.json();
+    const percent = Math.round(
+      (event.loaded / event.total) * 100
+    );
 
-if (!response.ok) throw new Error(data.error || "Conversion failed.");
+    progressFill.style.width = percent + "%";
+    progressText.textContent = `Uploading… ${percent}%`;
 
-extractStatus.textContent = "MP3 is ready.";
+  });
 
-extractResult.innerHTML =
-`<strong>Your MP3 is ready.</strong><br><a class="download-link" href="${data.url}" download="${data.filename}">Download MP3</a>`;
+  xhr.addEventListener("load", () => {
 
-extractResult.classList.remove("hidden");
+    if (xhr.status < 200 || xhr.status >= 300) {
 
-} catch (err) {
+      let message = "Upload failed.";
 
-extractStatus.innerHTML = `<span class="error">${err.message}</span>`;
+      try {
+        message = JSON.parse(xhr.responseText).error || message;
+      } catch {}
 
-} finally {
+      extractStatus.innerHTML =
+        `<span class="error">${message}</span>`;
 
-extractBtn.disabled = false;
+      extractBtn.disabled = false;
+      return;
+    }
 
-}
+    let data;
+
+    try {
+      data = JSON.parse(xhr.responseText);
+    } catch {
+
+      extractStatus.innerHTML =
+        '<span class="error">Invalid server response.</span>';
+
+      extractBtn.disabled = false;
+      return;
+    }
+
+    const jobId = data.jobId;
+
+    // Upload finished — now show actual FFmpeg progress.
+    progressFill.style.width = "100%";
+    progressText.textContent = "Upload complete";
+    extractStatus.textContent = "Extracting audio…";
+
+    const checkProgress = async () => {
+
+      try {
+
+        const response =
+          await fetch(`/api/progress/${jobId}`);
+
+        const job = await response.json();
+
+        if (!response.ok) {
+          throw new Error(job.error || "Could not read progress.");
+        }
+
+        if (job.status === "extracting") {
+
+          progressFill.style.width =
+            job.progress + "%";
+
+          progressText.textContent =
+            `Extracting audio… ${job.progress}%`;
+
+          setTimeout(checkProgress, 500);
+          return;
+        }
+
+        if (job.status === "complete") {
+
+          progressFill.style.width = "100%";
+          progressText.textContent = "Extraction complete";
+
+          extractStatus.textContent = "MP3 is ready.";
+
+          extractResult.innerHTML =
+            `<strong>Your MP3 is ready.</strong><br>
+             <a class="download-link" href="${job.url}">Download MP3</a>`;
+
+          extractResult.classList.remove("hidden");
+
+          extractBtn.disabled = false;
+
+          return;
+        }
+
+        if (job.status === "error") {
+
+          throw new Error(
+            job.error || "Audio extraction failed."
+          );
+
+        }
+
+      } catch (err) {
+
+        extractStatus.innerHTML =
+          `<span class="error">${err.message}</span>`;
+
+        extractBtn.disabled = false;
+
+      }
+
+    };
+
+    checkProgress();
+
+  });
+
+  xhr.addEventListener("error", () => {
+
+    extractStatus.innerHTML =
+      '<span class="error">Network error while uploading.</span>';
+
+    extractBtn.disabled = false;
+
+  });
+
+  const form = new FormData();
+
+  form.append("video", file);
+
+  xhr.send(form);
 
 });
 
