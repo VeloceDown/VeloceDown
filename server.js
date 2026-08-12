@@ -41,9 +41,13 @@ app.post("/api/extract-mp3", upload.single("video"), async (req, res) => {
   const displayName = `${safeFilename(req.file.originalname)}.mp3`;
 
 const allowedQualities = ["128", "192", "256", "320"];
+  
 const quality = allowedQualities.includes(req.body.quality)
   ? req.body.quality
   : "192";
+
+console.log("VeloceDown quality received:", req.body.quality);
+console.log("VeloceDown quality used:", quality);
   
   const token = crypto.randomBytes(24).toString("hex");
   const outputPath = path.join(outputDir, `${token}.mp3`);
