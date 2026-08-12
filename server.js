@@ -20,6 +20,7 @@ const upload = multer({
 });
 
 const files = new Map();
+const jobs = new Map();
 
 function safeFilename(name) {
   return (name || "VeloceDown audio")
@@ -32,38 +33,125 @@ function safeFilename(name) {
 
 app.use(express.static(__dirname));
 
-app.post("/api/extract-mp3", upload.single("video"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No video was uploaded." });
+app.post("/api/extract-mp3", upload.single("video"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No video was uploaded." });
+  }
 
   const displayName = `${safeFilename(req.file.originalname)}.mp3`;
   const token = crypto.randomBytes(24).toString("hex");
   const outputPath = path.join(outputDir, `${token}.mp3`);
 
-  execFile("ffmpeg", [
-    "-y", "-i", req.file.path,
-    "-vn", "-codec:a", "libmp3lame", "-q:a", "2",
-    outputPath
-  ], (error, stdout, stderr) => {
-    fs.unlink(req.file.path, () => {});
-
-    if (error) {
-      console.error(stderr);
-      return res.status(500).json({
-        error: "Audio extraction failed. Make sure the video contains an audio track."
-      });
-    }
-
-    files.set(token, {
-      path: outputPath,
-      filename: displayName,
-      created: Date.now()
-    });
-
-    res.json({
-      url: `/api/download/${token}`,
-      filename: displayName
-    });
+  jobs.set(token, {
+    progress: 0,
+    status: "extracting",
+    error: null
   });
+
+  // Tell the browser that the upload has completed and extraction has begun.
+  res.json({
+    jobId: token
+  });
+
+  try {
+    const duration = await new Promise((resolve, reject) => {
+      execFile("ffprobe", [
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        req.file.path
+      ], (error, stdout) => {
+        if (error) return reject(error);
+        resolve(parseFloat(stdout.trim()) || 0);
+      });
+    });
+
+    const ffmpeg = require("child_process").spawn("ffmpeg", [
+      "-y",
+      "-i", req.file.path,
+      "-vn",
+      "-codec:a", "libmp3lame",
+      "-q:a", "2",
+      "-progress", "pipe:1",
+      "-nostats",
+      outputPath
+    ]);
+
+    let progressBuffer = "";
+
+    ffmpeg.stdout.on("data", chunk => {
+      progressBuffer += chunk.toString();
+
+      const lines = progressBuffer.split("\n");
+      progressBuffer = lines.pop();
+
+      for (const line of lines) {
+        const match = line.match(/^out_time_ms=(\d+)/);
+
+        if (match && duration > 0) {
+          const seconds = Number(match[1]) / 1000000;
+          const percent = Math.min(
+            99,
+            Math.max(0, Math.round((seconds / duration) * 100))
+          );
+
+          const job = jobs.get(token);
+
+          if (job) {
+            job.progress = percent;
+            job.status = "extracting";
+          }
+        }
+      }
+    });
+
+    ffmpeg.on("close", code => {
+      fs.unlink(req.file.path, () => {});
+
+      if (code !== 0) {
+        console.error("FFmpeg exited with code:", code);
+
+        jobs.set(token, {
+          progress: 0,
+          status: "error",
+          error: "Audio extraction failed. Make sure the video contains an audio track."
+        });
+
+        fs.unlink(outputPath, () => {});
+        return;
+      }
+
+      files.set(token, {
+        path: outputPath,
+        filename: displayName,
+        created: Date.now()
+      });
+
+      jobs.set(token, {
+        progress: 100,
+        status: "complete",
+        error: null,
+        url: `/api/download/${token}`,
+        filename: displayName
+      });
+    });
+
+    ffmpeg.stderr.on("data", data => {
+      // FFmpeg diagnostic output intentionally ignored.
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    fs.unlink(req.file.path, () => {});
+    fs.unlink(outputPath, () => {});
+
+    jobs.set(token, {
+      progress: 0,
+      status: "error",
+      error: "Could not process the video."
+    });
+  }
 });
 
 app.get("/api/download/:token", (req, res) => {
@@ -78,6 +166,21 @@ app.get("/api/download/:token", (req, res) => {
       files.delete(req.params.token);
     }
   });
+});
+app.get("/api/progress/:token", (req, res) => {
+  const job = jobs.get(req.params.token);
+
+  if (!job) {
+    return res.status(404).json({
+      error: "Job not found."
+    });
+  }
+
+  res.json(job);
+
+  if (job.status === "complete" || job.status === "error") {
+    setTimeout(() => jobs.delete(req.params.token), 10 * 60 * 1000);
+  }
 });
 
 // Remove abandoned output files after 30 minutes.
