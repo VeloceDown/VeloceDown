@@ -20,58 +20,102 @@ app.use(express.static(ROOT));
 
 const upload = multer({
   dest: TMP,
-  limits: { fileSize: 2 * 1024 * 1024 * 1024 }
+  limits: {
+    fileSize: 2 * 1024 * 1024 * 1024
+  }
 });
 
 app.get("/api/health", (_, res) => {
-  res.json({ ok: true, service: "VeloceDown" });
+  res.json({
+    ok: true,
+    service: "VeloceDown"
+  });
 });
 
 app.get("/api/info", async (req, res) => {
   const url = String(req.query.url || "");
+
   if (!/^https?:\/\//i.test(url)) {
-    return res.status(400).json({ error: "Invalid URL" });
+    return res.status(400).json({
+      error: "Invalid URL"
+    });
   }
 
-  // Placeholder until the platform adapters are implemented.
   res.json({
     title: "VeloceDown source",
     formats: [
-      { id: "best", label: "Best available", ext: "MP4", requiresAd: true },
-      { id: "720p", label: "720p", ext: "MP4", requiresAd: false },
-      { id: "1080p", label: "1080p / Full HD", ext: "MP4", requiresAd: true },
-      { id: "mp3", label: "MP3 audio", ext: "MP3", requiresAd: false }
+      {
+        id: "best",
+        label: "Best available",
+        ext: "MP4",
+        requiresAd: true
+      },
+      {
+        id: "720p",
+        label: "720p",
+        ext: "MP4",
+        requiresAd: false
+      },
+      {
+        id: "1080p",
+        label: "1080p / Full HD",
+        ext: "MP4",
+        requiresAd: true
+      },
+      {
+        id: "mp3",
+        label: "MP3 audio",
+        ext: "MP3",
+        requiresAd: false
+      }
     ]
   });
 });
 
 app.post("/api/extract-mp3", upload.single("video"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No video uploaded" });
+  if (!req.file) {
+    return res.status(400).json({
+      error: "No video uploaded"
+    });
+  }
 
   const id = crypto.randomBytes(12).toString("hex");
   const output = path.join(OUT, `${id}.mp3`);
 
   const ffmpeg = spawn(ffmpegPath, [
     "-y",
-    "-i", req.file.path,
+    "-i",
+    req.file.path,
     "-vn",
-    "-codec:a", "libmp3lame",
-    "-q:a", "2",
+    "-codec:a",
+    "libmp3lame",
+    "-q:a",
+    "2",
     output
   ]);
 
   let stderr = "";
-  ffmpeg.stderr.on("data", d => stderr += d.toString());
+
+  ffmpeg.stderr.on("data", data => {
+    stderr += data.toString();
+  });
 
   ffmpeg.on("close", code => {
-    fs.rm(req.file.path, { force: true }, () => {});
+    fs.rm(req.file.path, {
+      force: true
+    }, () => {});
 
     if (code !== 0) {
       console.error(stderr);
-      return res.status(500).json({ error: "FFmpeg conversion failed" });
+
+      return res.status(500).json({
+        error: "FFmpeg conversion failed"
+      });
     }
 
-    res.json({ downloadUrl: `/api/file/${path.basename(output)}` });
+    res.json({
+      downloadUrl: `/api/file/${path.basename(output)}`
+    });
   });
 });
 
@@ -79,12 +123,18 @@ app.get("/api/file/:name", (req, res) => {
   const name = path.basename(req.params.name);
   const file = path.join(OUT, name);
 
-  if (!fs.existsSync(file)) return res.status(404).end();
+  if (!fs.existsSync(file)) {
+    return res.status(404).end();
+  }
 
   res.download(file, name, err => {
-    // Temporary output cleanup.
-    fs.rm(file, { force: true }, () => {});
-    if (err) console.error("Download error:", err.message);
+    fs.rm(file, {
+      force: true
+    }, () => {});
+
+    if (err) {
+      console.error("Download error:", err.message);
+    }
   });
 });
 
