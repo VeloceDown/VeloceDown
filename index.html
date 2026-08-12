@@ -564,9 +564,12 @@ extractBtn.addEventListener("click", () => {
 
   });
 
-  const form = new FormData();
+ const form = new FormData();
 
-  form.append("video", file);
+form.append("video", file);
+
+const qualitySelect = $("qualitySelect");
+form.append("quality", qualitySelect.value);
 
   xhr.send(form);
 
