@@ -39,6 +39,12 @@ app.post("/api/extract-mp3", upload.single("video"), async (req, res) => {
   }
 
   const displayName = `${safeFilename(req.file.originalname)}.mp3`;
+
+const allowedQualities = ["128", "192", "256", "320"];
+const quality = allowedQualities.includes(req.body.quality)
+  ? req.body.quality
+  : "192";
+  
   const token = crypto.randomBytes(24).toString("hex");
   const outputPath = path.join(outputDir, `${token}.mp3`);
 
@@ -70,8 +76,8 @@ app.post("/api/extract-mp3", upload.single("video"), async (req, res) => {
       "-y",
       "-i", req.file.path,
       "-vn",
-      "-codec:a", "libmp3lame",
-      "-q:a", "2",
+     "-codec:a", "libmp3lame",
+"-b:a", `${quality}k`,
       "-progress", "pipe:1",
       "-nostats",
       outputPath
@@ -156,14 +162,14 @@ app.post("/api/extract-mp3", upload.single("video"), async (req, res) => {
 
 app.get("/api/download/:token", (req, res) => {
   const item = files.get(req.params.token);
+
   if (!item || !fs.existsSync(item.path)) {
     return res.status(404).send("File not found or expired.");
   }
 
   res.download(item.path, item.filename, (err) => {
-    if (!err) {
-      fs.unlink(item.path, () => {});
-      files.delete(req.params.token);
+    if (err) {
+      console.error("Download error:", err);
     }
   });
 });
