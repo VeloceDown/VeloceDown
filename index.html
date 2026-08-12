@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="VeloceDown: unlimited video downloads, video to MP3 conversion, and audio extraction.">
+<title>VeloceDown — Video & Audio Downloader</title>
+<style>
+:root{--bg:#0b1020;--card:#121a2d;--card2:#18233b;--text:#f5f7fb;--muted:#9eabc1;--a:#35d0ba;--b:#5b8cff;--border:#ffffff17}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#1a2948,#0b1020 55%);color:var(--text);font:16px Arial,sans-serif}
+.wrap{max-width:960px;width:94%;margin:auto}header{padding:25px 0;display:flex;justify-content:space-between}.logo{font-size:28px;font-weight:800}.logo i{color:var(--a);font-style:normal}.tag,.hint,.muted{color:var(--muted);font-size:13px}
+main{text-align:center;padding:40px 0 70px}h1{font-size:clamp(38px,7vw,64px);margin:0 0 12px;letter-spacing:-2px}.lead{color:var(--muted);max-width:680px;margin:0 auto 30px;line-height:1.5}
+.card{background:#121a2df2;border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:0 20px 70px #0005;margin-bottom:18px}
+.row{display:flex;gap:10px}.url{flex:1;min-width:0;padding:17px;border-radius:12px;border:1px solid var(--border);background:#0b1222;color:var(--text);font-size:16px}
+button{border:0;border-radius:12px;padding:15px 22px;font-weight:700;font-size:15px;cursor:pointer;background:var(--a);color:#061311}button:disabled{opacity:.5;cursor:not-allowed}
+.secondary{background:#18233b;color:var(--text);border:1px solid var(--border)}
+.upload{border:2px dashed #ffffff22;padding:28px;border-radius:15px;cursor:pointer;background:#0d1528}.upload:hover{border-color:#35d0ba66}.upload input{display:none}
+.result{text-align:left;margin-top:15px;display:none}.formats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px}
+.format{background:#0d1528;color:var(--text);border:1px solid var(--border);text-align:left}.format .lock{color:#ffd166;font-size:12px}
+.progress{height:10px;background:#0a1020;border-radius:99px;overflow:hidden;margin:12px 0}.bar{height:100%;width:0;background:var(--a);transition:width .2s}
+.ad{min-height:60px;border:1px dashed #ffffff16;border-radius:12px;color:#66728a;display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:15px}
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.feature{background:#121a2db3;border-radius:14px;padding:18px;text-align:left}.feature b{display:block;margin-bottom:5px}.feature span{color:var(--muted);font-size:13px;line-height:1.4}
+.appbar{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:20px 0}.appbar button{background:#18233b;color:var(--text);border:1px solid var(--border)}
+@media(max-width:650px){.row{flex-direction:column}.features{grid-template-columns:1fr}header{gap:6px;flex-direction:column}.upload{padding:24px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="logo">Veloce<i>Down</i></div><div class="tag">Video & audio downloader</div></header>
+<main>
+<h1>Download. Convert. Done.</h1>
+<p class="lead">Download supported online videos, extract audio from videos on your device, and convert to MP3.</p>
+
+<section class="card">
+<h2>Download from a URL</h2>
+<div class="row">
+<input id="url" class="url" type="url" placeholder="Paste video URL here..." autocomplete="off">
+<button id="fetchBtn">Fetch</button>
+</div>
+<div class="hint">Use content you are permitted to download. Availability varies by source.</div>
+<div id="urlResult" class="result"></div>
+</section>
+
+<section class="card">
+<h2>Extract audio from your video</h2>
+<p class="muted">Choose a video stored on your phone or computer. VeloceDown will extract its audio and prepare an MP3.</p>
+<label class="upload">
+<input id="videoFile" type="file" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v">
+<strong>📁 Choose video from this device</strong><br>
+<span class="muted" id="fileName">No video selected</span>
+</label>
+<div id="uploadResult" class="result">
+  <div id="uploadStatus"></div>
+  <div class="progress"><div id="uploadBar" class="bar"></div></div>
+  <button id="extractBtn" disabled>Extract audio & create MP3</button>
+  <div id="mp3Result" style="margin-top:12px"></div>
+</div>
+<div class="ad">ADVERTISEMENT — shown between actions, never during processing</div>
+</section>
+
+<div class="appbar">
+<button>📱 Get VeloceDown for Android</button>
+<button>💻 Get VeloceDown for Windows</button>
+</div>
+
+<div class="features">
+<div class="feature"><b>Unlimited</b><span>No daily or monthly download/upload counter.</span></div>
+<div class="feature"><b>MP3</b><span>Extract audio from supported online videos or your own uploaded video.</span></div>
+<div class="feature"><b>Simple</b><span>Ads appear between actions, never interrupting an active download or conversion.</span></div>
+</div>
+</main>
+<footer class="muted" style="text-align:center;padding-bottom:30px">© 2026 VeloceDown</footer>
+</div>
+
+<script>
+const API_BASE = ""; // Set to your production API URL when frontend and backend are hosted separately.
+const $ = id => document.getElementById(id);
+
+function platform(url){
+ try{
+  const h=new URL(url).hostname.toLowerCase().replace(/^www\./,'');
+  if(h.includes('facebook.com')||h==='fb.watch')return'Facebook';
+  if(h.includes('tiktok.com'))return'TikTok';
+  if(h.includes('instagram.com'))return'Instagram';
+  if(h==='x.com'||h.includes('twitter.com'))return'X';
+  if(h.includes('youtube.com')||h==='youtu.be')return'YouTube';
+  if(h.includes('reddit.com'))return'Reddit';
+  return'Supported web source';
+ }catch{return null}
+}
+
+$('fetchBtn').onclick=async()=>{
+ const u=$('url').value.trim(), r=$('urlResult');
+ r.style.display='block';
+ if(!platform(u)){r.innerHTML='<b>Invalid URL</b><p class="muted">Please paste a complete video URL.</p>';return}
+ r.innerHTML='<b>'+platform(u)+'</b><p class="muted">Checking available formats…</p>';
+ try{
+  const x=await fetch(API_BASE+'/api/info?url='+encodeURIComponent(u));
+  if(!x.ok)throw 0;
+  const d=await x.json();
+  r.innerHTML='<b>'+((d.title||platform(u)).replace(/[<>]/g,''))+'</b><p class="muted">Choose a format:</p><div class="formats">'+(d.formats||[]).map(f=>
+   `<button class="format" data-id="${encodeURIComponent(f.id)}"><strong>${f.label}</strong><br><span class="muted">${f.ext||''}</span>${f.requiresAd?'<br><span class="lock">🔒 Short ad required</span>':''}</button>`).join('')+'</div><div id="job"></div>';
+  r.querySelectorAll('.format').forEach(b=>b.onclick=()=>downloadJob(u,decodeURIComponent(b.dataset.id)));
+ }catch(e){
+  r.innerHTML='<b>'+platform(u)+'</b><p class="muted">The frontend is ready; connect the VeloceDown backend to return live formats and downloads.</p>';
+ }
+};
+
+async function downloadJob(url,format){
+ const job=$('urlResult').querySelector('#job');
+ job.innerHTML='<div class="ad">ADVERTISEMENT — production flow places this before the gated download action.</div><p class="muted">Preparing download…</p>';
+ try{
+  const x=await fetch(API_BASE+'/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,format})});
+  if(!x.ok)throw 0;
+  const d=await x.json();
+  if(d.downloadUrl)location.href=d.downloadUrl; else job.innerHTML='<p>Job created. Awaiting download URL.</p>';
+ }catch{job.innerHTML='<p class="muted">Backend not connected yet.</p>'}
+}
+
+let selected=null;
+$('videoFile').onchange=e=>{
+ selected=e.target.files[0];
+ $('fileName').textContent=selected?`${selected.name} — ${(selected.size/1048576).toFixed(1)} MB`:'No video selected';
+ $('uploadResult').style.display=selected?'block':'none';
+ $('extractBtn').disabled=!selected;
+ $('uploadStatus').textContent=selected?'Ready to upload.':'';
+ $('mp3Result').innerHTML='';
+ $('uploadBar').style.width='0%';
+};
+
+$('extractBtn').onclick=async()=>{
+ if(!selected)return;
+ $('extractBtn').disabled=true;
+ $('uploadStatus').textContent='Uploading and preparing conversion…';
+ const fd=new FormData(); fd.append('video',selected);
+ const xhr=new XMLHttpRequest();
+ xhr.open('POST',API_BASE+'/api/extract-mp3');
+ xhr.upload.onprogress=e=>{if(e.lengthComputable)$('uploadBar').style.width=(e.loaded/e.total*100)+'%';};
+ xhr.onload=()=>{
+  if(xhr.status>=200&&xhr.status<300){
+   const d=JSON.parse(xhr.responseText);
+   $('uploadStatus').textContent='Audio extracted successfully.';
+   // Ad gate happens here, before the MP3 download, never during conversion.
+   $('mp3Result').innerHTML=`<div class="ad">ADVERTISEMENT — close it to continue</div><br><a href="${d.downloadUrl}" download><button>Download MP3</button></a>`;
+  }else $('uploadStatus').textContent='Conversion failed: '+xhr.responseText;
+  $('extractBtn').disabled=false;
+ };
+ xhr.onerror=()=>{$('uploadStatus').textContent='Could not reach the VeloceDown server.';$('extractBtn').disabled=false;};
+ xhr.send(fd);
+};
+</script>
+</body>
+</html>
