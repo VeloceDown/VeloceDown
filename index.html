@@ -2,293 +2,154 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="VeloceDown — download supported online videos and extract MP3 audio from videos on your device. Simple, fast and unlimited.">
-  <meta name="keywords" content="download video, video downloader, extract audio from video, video to mp3, mp3 converter, download video online">
-  <meta name="theme-color" content="#091020">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>VeloceDown — Video & Audio Downloader</title>
   <style>
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      color: #f5f7ff;
-      background: #070c18;
-      line-height: 1.5;
-    }
-    a { color: inherit; text-decoration: none; }
-    button, input { font: inherit; }
-    .wrap { width: min(1080px, calc(100% - 28px)); margin: 0 auto; }
-    header {
-      padding: 22px 0 12px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: rgba(7,12,24,.94);
-      border-bottom: 1px solid #18233b;
-      backdrop-filter: blur(10px);
-    }
-    .nav { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-    .brand { font-size: 25px; font-weight: 800; letter-spacing: -.5px; }
-    .brand span { color:#35d5c6; }
-    .nav-note { color:#9ba8c4; font-size:13px; }
-    main { padding: 28px 0 60px; }
-    .hero { text-align:center; padding: 34px 0 26px; }
-    .hero h1 { font-size: clamp(34px, 6vw, 58px); margin:0 0 12px; line-height:1.05; }
-    .hero h1 span { color:#35d5c6; }
-    .hero p { max-width:700px; margin:0 auto; color:#aeb9d0; font-size:17px; }
-    .card {
-      background:#10182b;
-      border:1px solid #1d2a46;
-      border-radius:22px;
-      padding: clamp(20px, 4vw, 34px);
-      margin: 18px 0;
-      box-shadow: 0 18px 50px rgba(0,0,0,.16);
-    }
-    .card h2 { margin:0 0 7px; font-size:26px; }
-    .sub { margin:0 0 20px; color:#9eabc5; }
-    .url-row { display:flex; gap:10px; }
-    .url-row input {
-      flex:1; min-width:0; padding:16px 17px; border-radius:14px;
-      border:1px solid #293755; background:#091020; color:#fff; outline:none;
-    }
-    .url-row input:focus { border-color:#35d5c6; }
-    .primary {
-      border:0; border-radius:14px; padding:0 25px; min-height:52px;
-      background:#35d5c6; color:#061017; font-weight:800; cursor:pointer;
-    }
-    .primary:disabled { opacity:.55; cursor:not-allowed; }
-    .hint { margin-top:10px; color:#8290ad; font-size:13px; text-align:center; }
-    .upload-zone {
-      border:2px dashed #334361; border-radius:18px; padding:28px 18px;
-      text-align:center; transition:.2s; background:#0b1323;
-    }
-    .upload-zone.drag { border-color:#35d5c6; background:#0d1d2b; }
-    .upload-icon { font-size:34px; margin-bottom:6px; }
-    .file-btn {
-      display:inline-flex; align-items:center; justify-content:center;
-      min-height:50px; padding:0 20px; border-radius:13px;
-      background:#19253d; border:1px solid #30405f; cursor:pointer; font-weight:700;
-    }
-    .file-name { margin:12px 0 0; color:#9eabc5; overflow-wrap:anywhere; }
-    .hidden { display:none !important; }
-    .ad-slot {
-      min-height:64px; margin-top:18px; border:1px dashed #2b3853;
-      border-radius:13px; display:flex; align-items:center; justify-content:center;
-      color:#687792; font-size:12px; text-transform:uppercase; letter-spacing:.5px;
-    }
-    .actions { display:flex; justify-content:center; margin-top:16px; }
-    .status { margin-top:14px; text-align:center; color:#b8c4db; }
-    .result {
-      margin-top:16px; padding:16px; border-radius:14px; background:#0a1323;
-      border:1px solid #253552; text-align:center;
-    }
-    .download-link {
-      display:inline-block; margin-top:10px; padding:12px 18px; border-radius:12px;
-      background:#35d5c6; color:#061017; font-weight:800;
-    }
-    .downloads { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin:24px 0; }
-    .secondary {
-      display:inline-flex; align-items:center; justify-content:center; gap:8px;
-      min-height:48px; padding:0 20px; border-radius:13px;
-      background:#121d32; border:1px solid #293a5a; font-weight:700;
-    }
-    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:20px; }
-    .feature { background:#10182b; border:1px solid #1d2a46; border-radius:17px; padding:20px; }
-    .feature strong { display:block; margin-bottom:5px; font-size:17px; }
-    .feature p { margin:0; color:#93a0bb; font-size:14px; }
-    .seo { margin-top:24px; }
-    .seo h2 { font-size:24px; }
-    .seo p { color:#9eabc5; }
-    footer { padding:30px 0 45px; color:#687792; text-align:center; font-size:13px; }
-    .error { color:#ff9b9b; }
-    @media (max-width: 700px) {
-      .nav-note { display:none; }
-      .hero { padding-top:22px; }
-      .hero p { font-size:15px; }
-      .url-row { flex-direction:column; }
-      .primary { width:100%; }
-      .grid { grid-template-columns:1fr; }
-      .card { border-radius:18px; }
-      .upload-zone { padding:24px 14px; }
-    }
+    *{box-sizing:border-box}
+    body{margin:0;background:#070d1d;color:#f5f7ff;font-family:Arial,sans-serif}
+    header{padding:20px 7%;border-bottom:1px solid #1b2740}
+    .logo{font-size:28px;font-weight:800}.logo span{color:#31d6c6}
+    main{max-width:1000px;margin:auto;padding:35px 20px}
+    .card{background:#101a30;border:1px solid #263553;border-radius:22px;padding:30px;margin-bottom:22px}
+    h1,h2{margin-top:0}.muted{color:#aebbd4}
+    .picker{border:2px dashed #405170;border-radius:20px;padding:35px;text-align:center;cursor:pointer}
+    .picker:hover{border-color:#31d6c6}
+    input[type=file]{display:none}
+    button{border:0;border-radius:12px;padding:14px 24px;font-size:16px;font-weight:700;cursor:pointer;background:#31d6c6;color:#041018}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .filename{margin:18px 0;color:#c8d4e9;word-break:break-word}
+    video{width:100%;max-height:420px;border-radius:14px;background:#000;margin-top:15px}
+    .hidden{display:none}
+    .progress-wrap{margin:20px 0}.progress-bar{height:18px;background:#202c45;border-radius:20px;overflow:hidden}
+    .progress{height:100%;width:0%;background:#31d6c6;transition:width .15s}
+    .status{text-align:center;margin-top:10px;color:#c8d4e9}
+    .result{margin-top:20px;padding:20px;border:1px solid #31415f;border-radius:16px;text-align:center}
+    a.download{display:inline-block;text-decoration:none;background:#31d6c6;color:#041018;padding:14px 24px;border-radius:12px;font-weight:700}
+    .ad{border:1px dashed #405170;padding:20px;text-align:center;color:#687a9d;margin:20px 0}
   </style>
 </head>
 <body>
-<header>
-  <div class="wrap nav">
-    <a class="brand" href="/">Veloce<span>Down</span></a>
-    <div class="nav-note">Video &amp; audio tools</div>
-  </div>
-</header>
+<header><div class="logo">Veloce<span>Down</span></div></header>
 
-<main class="wrap">
-  <section class="hero">
-    <h1>Download. Extract. <span>Done.</span></h1>
-    <p>VeloceDown is a simple video and audio utility for supported sources and videos stored on your own device.</p>
-  </section>
+<main>
+  <section class="card">
+    <h1>Extract audio from your video</h1>
+    <p class="muted">Choose a video stored on your phone or computer. VeloceDown extracts the audio and prepares an MP3.</p>
 
-  <section class="card" id="downloader">
-    <h2>Download from a URL</h2>
-    <p class="sub">Paste a supported video URL below and fetch the available formats.</p>
-    <div class="url-row">
-      <input id="urlInput" type="url" inputmode="url" placeholder="Paste video URL here…" autocomplete="off">
-      <button class="primary" id="fetchBtn">Fetch</button>
-    </div>
-    <div class="hint">Use content you are permitted to download. Availability varies by source.</div>
-    <div id="urlStatus" class="status"></div>
-    <div id="formats" class="result hidden"></div>
-  </section>
+    <label class="picker" for="videoInput">
+      <div style="font-size:42px">♪</div>
+      <strong>Choose video from this device</strong>
+      <div class="muted" id="selection">No video selected</div>
+    </label>
+    <input id="videoInput" type="file" accept="video/*,.mkv,.webm,.mp4,.mov,.avi,.m4v">
 
-  <section class="card" id="extractor">
-    <h2>Extract audio from your video</h2>
-    <p class="sub">Choose a video stored on your phone or computer. VeloceDown extracts its audio and prepares an MP3.</p>
-
-    <div class="upload-zone" id="dropZone">
-      <div class="upload-icon">🎵</div>
-      <label class="file-btn" for="videoFile">Choose video from this device</label>
-      <input id="videoFile" class="hidden" type="file" accept="video/*,.mp4,.mov,.mkv,.webm,.avi,.m4v">
-      <div id="fileName" class="file-name">No video selected</div>
+    <div id="previewBox" class="hidden">
+      <video id="videoPreview" controls playsinline></video>
     </div>
 
-    <div class="ad-slot">Advertisement — shown between actions, never during processing</div>
+    <div class="ad">ADVERTISEMENT — shown between actions, never during processing</div>
 
-    <div class="actions">
-      <button class="primary" id="extractBtn" disabled>Extract MP3</button>
+    <div class="progress-wrap hidden" id="progressWrap">
+      <div class="progress-bar"><div class="progress" id="progress"></div></div>
+      <div class="status" id="status">Preparing…</div>
     </div>
 
-    <div id="extractStatus" class="status"></div>
-    <div id="extractResult" class="result hidden"></div>
-  </section>
+    <div style="text-align:center;margin-top:20px">
+      <button id="extractBtn" disabled>Extract MP3</button>
+    </div>
 
-  <div class="downloads">
-    <a class="secondary" href="#" onclick="alert('Android package will be connected here when the app build is ready.');return false;">📱 Get VeloceDown for Android</a>
-    <a class="secondary" href="#" onclick="alert('Windows package will be connected here when the desktop build is ready.');return false;">💻 Get VeloceDown for Windows</a>
-  </div>
-
-  <section class="grid">
-    <div class="feature"><strong>♾️ Unlimited</strong><p>No artificial daily or monthly download counter.</p></div>
-    <div class="feature"><strong>🎧 MP3</strong><p>Extract audio from videos uploaded from your own device.</p></div>
-    <div class="feature"><strong>📢 Simple ads</strong><p>Ads can be placed between actions rather than interrupting an active conversion.</p></div>
-  </section>
-
-  <section class="card seo">
-    <h2>Extract audio from video to MP3</h2>
-    <p>Need to get the audio out of a video? Upload a video from your phone or computer and VeloceDown can convert the audio to an MP3 file. This page is designed to be easy to use on both mobile and desktop devices.</p>
+    <div id="result" class="result hidden">
+      <h3>Your MP3 is ready.</h3>
+      <a id="downloadLink" class="download" href="#">Download MP3</a>
+    </div>
   </section>
 </main>
 
-<footer>
-  © 2026 VeloceDown
-</footer>
-
 <script>
-  const $ = id => document.getElementById(id);
+const input = document.getElementById('videoInput');
+const selection = document.getElementById('selection');
+const previewBox = document.getElementById('previewBox');
+const preview = document.getElementById('videoPreview');
+const extractBtn = document.getElementById('extractBtn');
+const progressWrap = document.getElementById('progressWrap');
+const progress = document.getElementById('progress');
+const status = document.getElementById('status');
+const result = document.getElementById('result');
+const downloadLink = document.getElementById('downloadLink');
 
-  const videoFile = $("videoFile");
-  const dropZone = $("dropZone");
-  const fileName = $("fileName");
-  const extractBtn = $("extractBtn");
-  const extractStatus = $("extractStatus");
-  const extractResult = $("extractResult");
+let selectedFile = null;
+let previewUrl = null;
 
-  function setFile(file) {
-    if (!file) return;
-    if (file.type && !file.type.startsWith("video/")) {
-      fileName.textContent = "Please select a video file.";
-      extractBtn.disabled = true;
-      return;
-    }
-    videoFile.files = (() => {
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      return dt.files;
-    })();
-    fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
-    extractBtn.disabled = false;
-    extractStatus.textContent = "";
-    extractResult.classList.add("hidden");
+input.addEventListener('change', () => {
+  selectedFile = input.files[0];
+  result.classList.add('hidden');
+  if (!selectedFile) {
+    selection.textContent = 'No video selected';
+    extractBtn.disabled = true;
+    previewBox.classList.add('hidden');
+    return;
   }
 
-  videoFile.addEventListener("change", () => setFile(videoFile.files[0]));
+  const mb = (selectedFile.size / 1024 / 1024).toFixed(1);
+  selection.textContent = `${selectedFile.name} (${mb} MB)`;
+  extractBtn.disabled = false;
 
-  ["dragenter","dragover"].forEach(eventName => {
-    dropZone.addEventListener(eventName, e => {
-      e.preventDefault();
-      dropZone.classList.add("drag");
-    });
-  });
-  ["dragleave","drop"].forEach(eventName => {
-    dropZone.addEventListener(eventName, e => {
-      e.preventDefault();
-      dropZone.classList.remove("drag");
-    });
-  });
-  dropZone.addEventListener("drop", e => setFile(e.dataTransfer.files[0]));
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = URL.createObjectURL(selectedFile);
+  preview.src = previewUrl;
+  previewBox.classList.remove('hidden');
+});
 
-  extractBtn.addEventListener("click", async () => {
-    const file = videoFile.files[0];
-    if (!file) return;
+extractBtn.addEventListener('click', () => {
+  if (!selectedFile) return;
 
-    extractBtn.disabled = true;
-    extractStatus.textContent = "Uploading and extracting audio… Please keep this page open.";
-    extractResult.classList.add("hidden");
+  extractBtn.disabled = true;
+  result.classList.add('hidden');
+  progressWrap.classList.remove('hidden');
+  progress.style.width = '0%';
+  status.textContent = 'Uploading… 0%';
 
-    const form = new FormData();
-    form.append("video", file);
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/extract-mp3');
 
-    try {
-      const response = await fetch("/api/extract-mp3", { method: "POST", body: form });
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || "Conversion failed.");
-
-      extractStatus.textContent = "MP3 is ready.";
-      extractResult.innerHTML =
-        `<strong>Your MP3 is ready.</strong><br><a class="download-link" href="${data.downloadUrl}">Download MP3</a>`;
-      extractResult.classList.remove("hidden");
-    } catch (err) {
-      extractStatus.innerHTML = `<span class="error">${err.message}</span>`;
-    } finally {
-      extractBtn.disabled = false;
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      progress.style.width = pct + '%';
+      status.textContent = `Uploading… ${pct}%`;
     }
-  });
+  };
 
-  $("fetchBtn").addEventListener("click", async () => {
-    const url = $("urlInput").value.trim();
-    const status = $("urlStatus");
-    const formats = $("formats");
-
-    formats.classList.add("hidden");
-    status.textContent = "";
-
-    if (!/^https?:\/\//i.test(url)) {
-      status.innerHTML = '<span class="error">Please enter a valid video URL.</span>';
-      return;
+  xhr.onload = () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        progress.style.width = '100%';
+        status.textContent = 'Conversion complete — MP3 ready.';
+        downloadLink.href = data.url;
+        downloadLink.download = data.filename;
+        result.classList.remove('hidden');
+      } catch {
+        status.textContent = 'The server returned an invalid response.';
+      }
+    } else {
+      let msg = 'Conversion failed.';
+      try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
+      status.textContent = msg;
     }
+    extractBtn.disabled = false;
+  };
 
-    $("fetchBtn").disabled = true;
-    status.textContent = "Checking available formats…";
+  xhr.onerror = () => {
+    status.textContent = 'Network error. Please try again.';
+    extractBtn.disabled = false;
+  };
 
-    try {
-      const response = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not inspect URL.");
-
-      formats.innerHTML = `<strong>Available options</strong><div style="margin-top:12px;display:grid;gap:8px">${
-        data.formats.map(f =>
-          `<button class="secondary" type="button" style="width:100%" onclick="alert('This source adapter will be connected in the next build.')">${f.label} — ${f.ext}${f.requiresAd ? " • HD/ad gate" : ""}</button>`
-        ).join("")
-      }</div>`;
-      formats.classList.remove("hidden");
-      status.textContent = "";
-    } catch (err) {
-      status.innerHTML = `<span class="error">${err.message}</span>`;
-    } finally {
-      $("fetchBtn").disabled = false;
-    }
-  });
+  const form = new FormData();
+  form.append('video', selectedFile);
+  status.textContent = 'Uploading…';
+  xhr.send(form);
+});
 </script>
 </body>
 </html>
