@@ -277,8 +277,6 @@ footer { padding:30px 0 45px; color:#687792; text-align:center; font-size:13px; 
 
 <div class="actions" style="flex-direction:column;align-items:center;gap:12px;">
 
-
-
 <button class="primary" id="extractBtn" disabled>Extract Audio</button>
 
 </div>
@@ -512,12 +510,62 @@ extractBtn.addEventListener("click", () => {
 
           extractStatus.textContent = "MP3 is ready.";
 
-          extractResult.innerHTML =
-            `<strong>Your MP3 is ready.</strong><br>
-             <a class="download-link" href="${job.url}">Download MP3</a>`;
-
+         extractResult.innerHTML =
+  `<strong>Your audio is ready.</strong><br>
+   <button class="primary" type="button" id="downloadAudioBtn">
+     Download Audio
+   </button>`;
+          
           extractResult.classList.remove("hidden");
+          
+const downloadAudioBtn = $("downloadAudioBtn");
 
+downloadAudioBtn.addEventListener("click", () => {
+
+  extractResult.innerHTML = `
+    <strong>Choose download quality</strong>
+    <div style="display:grid;gap:8px;margin-top:12px;max-width:320px;margin-left:auto;margin-right:auto;">
+
+      <button class="secondary quality-download" type="button" data-quality="128">
+        128 kbps
+      </button>
+
+      <button class="secondary quality-download" type="button" data-quality="192">
+        192 kbps
+      </button>
+
+      <button class="secondary quality-download" type="button" data-quality="256">
+        256 kbps
+      </button>
+
+      <button class="secondary quality-download" type="button" data-quality="320">
+        320 kbps
+      </button>
+
+    </div>
+  `;
+
+  document.querySelectorAll(".quality-download").forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      const quality = button.dataset.quality;
+
+      extractStatus.textContent =
+        `Converting audio to ${quality} kbps…`;
+
+      extractResult.innerHTML =
+        `<strong>Preparing ${quality} kbps MP3…</strong>`;
+
+      window.location.href =
+        `${job.url}?quality=${quality}`;
+
+    });
+
+  });
+
+});
+          
           extractBtn.disabled = false;
 
           return;
@@ -559,10 +607,7 @@ extractBtn.addEventListener("click", () => {
 
   form.append("video", file);
 
-  const qualitySelect = $("qualitySelect");
-form.append("quality", qualitySelect.value);
-
-  xhr.send(form);
+   xhr.send(form);
 
 });
 
