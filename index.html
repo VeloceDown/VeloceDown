@@ -551,8 +551,18 @@ downloadAudioBtn.addEventListener("click", () => {
 
       const quality = button.dataset.quality;
 
-     window.location.href =
+    const downloadLink = document.createElement("a");
+
+downloadLink.href =
   `${job.url}?quality=${quality}`;
+
+downloadLink.download = "";
+
+document.body.appendChild(downloadLink);
+
+downloadLink.click();
+
+downloadLink.remove();
 
     });
 
