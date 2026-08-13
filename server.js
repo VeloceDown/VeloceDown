@@ -22,6 +22,7 @@ const upload = multer({
 
 const files = new Map();
 const jobs = new Map();
+const downloadJobs = new Map();
 
 function safeFilename(name) {
   return (name || "VeloceDown audio")
