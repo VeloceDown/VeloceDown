@@ -524,7 +524,15 @@ downloadAudioBtn.addEventListener("click", () => {
 
   extractResult.innerHTML = `
     <strong>Choose download quality</strong>
-    <div style="display:grid;gap:8px;margin-top:12px;max-width:320px;margin-left:auto;margin-right:auto;">
+
+    <div style="
+      display:grid;
+      gap:8px;
+      margin-top:12px;
+      max-width:320px;
+      margin-left:auto;
+      margin-right:auto;
+    ">
 
       <button class="primary quality-download" type="button" data-quality="128">
         128 kbps
@@ -545,102 +553,86 @@ downloadAudioBtn.addEventListener("click", () => {
     </div>
   `;
 
- document.querySelectorAll(".quality-download").forEach(button => {
+  document.querySelectorAll(".quality-download").forEach(button => {
 
-  button.addEventListener("click", async () => {
+    button.addEventListener("click", async () => {
 
-    const quality = button.dataset.quality;
+      const quality = button.dataset.quality;
 
-    // Disable quality buttons while conversion is running.
-    document.querySelectorAll(".quality-download").forEach(btn => {
-      btn.disabled = true;
-    });
+      document
+        .querySelectorAll(".quality-download")
+        .forEach(btn => {
+          btn.disabled = true;
+        });
 
-    extractResult.innerHTML = `
-      <strong>Converting to ${quality} kbps…</strong>
+      extractResult.innerHTML = `
+        <strong>Converting to ${quality} kbps…</strong>
 
-      <div style="
-        width:100%;
-        max-width:420px;
-        height:18px;
-        background:#ddd;
-        border-radius:10px;
-        overflow:hidden;
-        margin:15px auto 8px auto;
-      ">
-        <div
-          id="downloadProgressBar"
-          style="
-            width:0%;
-            height:100%;
-            transition:width 0.3s ease;
-          "
-        ></div>
-      </div>
+        <div style="
+          width:100%;
+          max-width:420px;
+          height:18px;
+          background:#ddd;
+          border-radius:10px;
+          overflow:hidden;
+          margin:15px auto 8px auto;
+        ">
+          <div
+            id="downloadProgressBar"
+            style="
+              width:0%;
+              height:100%;
+              transition:width 0.3s ease;
+            "
+          ></div>
+        </div>
 
-      <div id="downloadProgressText">
-        Conversion in progress… 0%
-      </div>
-    `;
+        <div id="downloadProgressText">
+          Conversion in progress… 0%
+        </div>
+      `;
 
-    try {
+      try {
 
-      // ------------------------------------------------------
-      // Start conversion.
-      // ------------------------------------------------------
+        const response = await fetch(
+          `${job.url}?quality=${quality}`
+        );
 
-      const response = await fetch(
-        `${job.url}?quality=${quality}`
-      );
+        if (!response.ok) {
+          throw new Error("Could not start conversion.");
+        }
 
-      if (!response.ok) {
-        throw new Error("Could not start conversion.");
-      }
+        const conversion = await response.json();
 
-      const conversion = await response.json();
+        const downloadJobId = conversion.jobId;
 
-      const downloadJobId =
-        conversion.jobId;
-
-      // ------------------------------------------------------
-      // Monitor conversion progress.
-      // ------------------------------------------------------
-
-      const progressTimer =
-        setInterval(async () => {
+        const progressTimer = setInterval(async () => {
 
           try {
 
-            const progressResponse =
-              await fetch(
-                `/api/download-progress/${downloadJobId}`
-              );
+            const progressResponse = await fetch(
+              `/api/download-progress/${downloadJobId}`
+            );
+
+            const progress = await progressResponse.json();
 
             if (!progressResponse.ok) {
               throw new Error(
-                "Could not read conversion progress."
+                progress.error || "Could not read conversion progress."
               );
             }
 
-            const progress =
-              await progressResponse.json();
+            const progressBar =
+              document.getElementById("downloadProgressBar");
+
+            const progressText =
+              document.getElementById("downloadProgressText");
 
             const percent =
               Number(progress.progress) || 0;
 
-            const progressBar =
-              document.getElementById(
-                "downloadProgressBar"
-              );
-
-            const progressText =
-              document.getElementById(
-                "downloadProgressText"
-              );
-
             if (progressBar) {
-              progressBar.style.width =
-                `${percent}%`;
+              progressBar.style.width = `${percent}%`;
             }
 
             if (progressText) {
@@ -648,21 +640,12 @@ downloadAudioBtn.addEventListener("click", () => {
                 `Conversion in progress… ${percent}%`;
             }
 
-            // ------------------------------------------------
-            // Conversion finished.
-            // ------------------------------------------------
+            if (progress.status === "complete") {
 
-            if (
-              progress.status === "complete"
-            ) {
-
-              clearInterval(
-                progressTimer
-              );
+              clearInterval(progressTimer);
 
               if (progressBar) {
-                progressBar.style.width =
-                  "100%";
+                progressBar.style.width = "100%";
               }
 
               if (progressText) {
@@ -670,8 +653,6 @@ downloadAudioBtn.addEventListener("click", () => {
                   "Conversion complete. Starting download…";
               }
 
-              // Give the browser a moment to display
-              // the completed state before starting download.
               setTimeout(() => {
 
                 const downloadLink =
@@ -680,17 +661,12 @@ downloadAudioBtn.addEventListener("click", () => {
                 downloadLink.href =
                   progress.url;
 
-                downloadLink.download = "";
-
-                document.body.appendChild(
-                  downloadLink
-                );
+                document.body.appendChild(downloadLink);
 
                 downloadLink.click();
 
                 downloadLink.remove();
 
-                // Re-enable quality buttons.
                 document
                   .querySelectorAll(".quality-download")
                   .forEach(btn => {
@@ -699,7 +675,7 @@ downloadAudioBtn.addEventListener("click", () => {
 
                 extractResult.innerHTML = `
                   <strong>
-                    Download ready — choose another quality if you want.
+                    Download complete — choose another quality if you want.
                   </strong>
                 `;
 
@@ -707,17 +683,9 @@ downloadAudioBtn.addEventListener("click", () => {
 
             }
 
-            // ------------------------------------------------
-            // Conversion failed.
-            // ------------------------------------------------
+            if (progress.status === "error") {
 
-            if (
-              progress.status === "error"
-            ) {
-
-              clearInterval(
-                progressTimer
-              );
+              clearInterval(progressTimer);
 
               extractResult.innerHTML = `
                 <strong>
@@ -735,9 +703,7 @@ downloadAudioBtn.addEventListener("click", () => {
 
           } catch (error) {
 
-            clearInterval(
-              progressTimer
-            );
+            clearInterval(progressTimer);
 
             console.error(
               "Download progress error:",
@@ -760,26 +726,28 @@ downloadAudioBtn.addEventListener("click", () => {
 
         }, 500);
 
-    } catch (error) {
+      } catch (error) {
 
-      console.error(
-        "Download conversion error:",
-        error
-      );
+        console.error(
+          "Download conversion error:",
+          error
+        );
 
-      extractResult.innerHTML = `
-        <strong>
-          Could not start audio conversion.
-        </strong>
-      `;
+        extractResult.innerHTML = `
+          <strong>
+            Could not start audio conversion.
+          </strong>
+        `;
 
-      document
-        .querySelectorAll(".quality-download")
-        .forEach(btn => {
-          btn.disabled = false;
-        });
+        document
+          .querySelectorAll(".quality-download")
+          .forEach(btn => {
+            btn.disabled = false;
+          });
 
-    }
+      }
+
+    });
 
   });
 
