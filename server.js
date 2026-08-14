@@ -291,22 +291,18 @@ app.post("/api/extract-mp3", upload.single("video"), async (req, res) => {
 // The FLAC master is converted to the requested MP3 quality.
 // ============================================================
 
-app.get("/api/download/:token", (req, res) => {
+app.get("/api/download/:token", async (req, res) => {
 
   const item = files.get(req.params.token);
-
 
   if (
     !item ||
     !fs.existsSync(item.path)
   ) {
-
-    return res.status(404).send(
-      "File not found or expired."
-    );
-
+    return res.status(404).json({
+      error: "File not found or expired."
+    });
   }
-
 
   // ----------------------------------------------------------
   // Read requested bitrate.
@@ -315,27 +311,26 @@ app.get("/api/download/:token", (req, res) => {
   const requestedQuality =
     String(req.query.quality || "192");
 
-
   const quality =
     allowedQualities.includes(requestedQuality)
       ? requestedQuality
       : "192";
 
-
   console.log(
-    "VeloceDown download quality:",
+    "VeloceDown download conversion requested:",
     quality,
     "kbps"
   );
 
+  // ----------------------------------------------------------
+  // Create conversion job.
+  // ----------------------------------------------------------
 
-  // ----------------------------------------------------------
-  // Create temporary MP3 for this specific download.
-  // ----------------------------------------------------------
+  const downloadJobId =
+    crypto.randomBytes(24).toString("hex");
 
   const downloadToken =
     crypto.randomBytes(16).toString("hex");
-
 
   const outputPath =
     path.join(
@@ -343,124 +338,296 @@ app.get("/api/download/:token", (req, res) => {
       `${downloadToken}-${quality}.mp3`
     );
 
-
   const downloadFilename =
     `${item.baseName} - ${quality}kbps.mp3`;
 
-
-  // ----------------------------------------------------------
-  // Convert LOSSLESS master -> requested MP3 bitrate.
-  // ----------------------------------------------------------
-
-  const ffmpeg = spawn("ffmpeg", [
-
-    "-y",
-
-    "-i",
-    item.path,
-
-    "-vn",
-
-    "-c:a",
-    "libmp3lame",
-
-    "-b:a",
-    `${quality}k`,
-
-    "-ar",
-    "44100",
-
-    "-ac",
-    "2",
-
-    outputPath
-
-  ]);
-
-
-  let errorOutput = "";
-
-
-  ffmpeg.stderr.on("data", data => {
-
-    errorOutput += data.toString();
-
+  downloadJobs.set(downloadJobId, {
+    progress: 0,
+    status: "converting",
+    error: null,
+    outputPath: outputPath,
+    filename: downloadFilename
   });
 
+  // ----------------------------------------------------------
+  // Find master duration for progress reporting.
+  // ----------------------------------------------------------
 
-  ffmpeg.on("error", error => {
+  try {
 
-    console.error(
-      "FFmpeg download conversion error:",
-      error
-    );
+    const duration = await new Promise((resolve, reject) => {
 
-    fs.unlink(outputPath, () => {});
-
-    if (!res.headersSent) {
-
-      res.status(500).send(
-        "Could not convert audio."
-      );
-
-    }
-
-  });
-
-
-  ffmpeg.on("close", code => {
-
-    if (code !== 0) {
-
-      console.error(
-        "FFmpeg download conversion failed:",
-        code
-      );
-
-      console.error(errorOutput);
-
-      fs.unlink(outputPath, () => {});
-
-      if (!res.headersSent) {
-
-        res.status(500).send(
-          "Could not convert audio."
-        );
-
-      }
-
-      return;
-    }
-
-
-    // --------------------------------------------------------
-    // Send the converted MP3 to the user.
-    // --------------------------------------------------------
-
-    res.download(
-      outputPath,
-      downloadFilename,
-      error => {
-
-        // Delete temporary MP3 after download.
-        fs.unlink(outputPath, () => {});
+      execFile("ffprobe", [
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        item.path
+      ], (error, stdout) => {
 
         if (error) {
+          return reject(error);
+        }
 
-          console.error(
-            "Download error:",
-            error
-          );
+        resolve(
+          parseFloat(stdout.trim()) || 0
+        );
+
+      });
+
+    });
+
+    // --------------------------------------------------------
+    // Start FFmpeg conversion.
+    // --------------------------------------------------------
+
+    const ffmpeg = spawn("ffmpeg", [
+
+      "-y",
+
+      "-i",
+      item.path,
+
+      "-vn",
+
+      "-c:a",
+      "libmp3lame",
+
+      "-b:a",
+      `${quality}k`,
+
+      "-ar",
+      "44100",
+
+      "-ac",
+      "2",
+
+      "-progress",
+      "pipe:1",
+
+      "-nostats",
+
+      outputPath
+
+    ]);
+
+    let progressBuffer = "";
+    let errorOutput = "";
+
+    ffmpeg.stdout.on("data", chunk => {
+
+      progressBuffer += chunk.toString();
+
+      const lines =
+        progressBuffer.split("\n");
+
+      progressBuffer = lines.pop();
+
+      for (const line of lines) {
+
+        const match =
+          line.match(/^out_time_ms=(\d+)/);
+
+        if (
+          match &&
+          duration > 0
+        ) {
+
+          const seconds =
+            Number(match[1]) / 1000000;
+
+          const percent =
+            Math.min(
+              99,
+              Math.max(
+                0,
+                Math.round(
+                  (seconds / duration) * 100
+                )
+              )
+            );
+
+          const job =
+            downloadJobs.get(downloadJobId);
+
+          if (job) {
+            job.progress = percent;
+          }
 
         }
 
       }
+
+    });
+
+    ffmpeg.stderr.on("data", data => {
+
+      errorOutput +=
+        data.toString();
+
+    });
+
+    ffmpeg.on("error", error => {
+
+      console.error(
+        "FFmpeg download conversion error:",
+        error
+      );
+
+      fs.unlink(outputPath, () => {});
+
+      downloadJobs.set(
+        downloadJobId,
+        {
+          progress: 0,
+          status: "error",
+          error: "Could not convert audio."
+        }
+      );
+
+    });
+
+    ffmpeg.on("close", code => {
+
+      const job =
+        downloadJobs.get(downloadJobId);
+
+      if (code !== 0) {
+
+        console.error(
+          "FFmpeg download conversion failed:",
+          code
+        );
+
+        console.error(errorOutput);
+
+        fs.unlink(outputPath, () => {});
+
+        if (job) {
+          job.progress = 0;
+          job.status = "error";
+          job.error = "Could not convert audio.";
+        }
+
+        return;
+      }
+
+      if (job) {
+
+        job.progress = 100;
+        job.status = "complete";
+        job.error = null;
+        job.url =
+          `/api/download-file/${downloadJobId}`;
+
+      }
+
+    });
+
+    // --------------------------------------------------------
+    // Tell browser that conversion has started.
+    // --------------------------------------------------------
+
+    res.json({
+      jobId: downloadJobId,
+      quality: quality
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Could not start download conversion:",
+      error
     );
 
+    downloadJobs.delete(downloadJobId);
+
+    fs.unlink(outputPath, () => {});
+
+    res.status(500).json({
+      error: "Could not start audio conversion."
+    });
+
+  }
+
+});
+
+
+// ============================================================
+// DOWNLOAD CONVERSION PROGRESS
+// ============================================================
+
+app.get("/api/download-progress/:jobId", (req, res) => {
+
+  const job =
+    downloadJobs.get(req.params.jobId);
+
+  if (!job) {
+
+    return res.status(404).json({
+      error: "Download job not found."
+    });
+
+  }
+
+  res.json({
+    progress: job.progress,
+    status: job.status,
+    error: job.error,
+    url: job.url || null
   });
 
 });
 
+
+// ============================================================
+// SEND COMPLETED DOWNLOAD
+// ============================================================
+
+app.get("/api/download-file/:jobId", (req, res) => {
+
+  const job =
+    downloadJobs.get(req.params.jobId);
+
+  if (
+    !job ||
+    job.status !== "complete" ||
+    !job.outputPath ||
+    !fs.existsSync(job.outputPath)
+  ) {
+
+    return res.status(404).send(
+      "Download file not found or expired."
+    );
+
+  }
+
+  res.download(
+    job.outputPath,
+    job.filename,
+    error => {
+
+      fs.unlink(
+        job.outputPath,
+        () => {}
+      );
+
+      downloadJobs.delete(
+        req.params.jobId
+      );
+
+      if (error) {
+
+        console.error(
+          "Download error:",
+          error
+        );
+
+      }
+
+    }
+  );
+
+});
 
 // ============================================================
 // PROGRESS
