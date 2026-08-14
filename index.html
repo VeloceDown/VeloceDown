@@ -565,33 +565,46 @@ downloadAudioBtn.addEventListener("click", () => {
           btn.disabled = true;
         });
 
-      extractResult.innerHTML = `
-        <strong>Converting to ${quality} kbps…</strong>
+     const existingProgress =
+  document.getElementById("downloadProgressUI");
 
-        <div style="
-          width:100%;
-          max-width:420px;
-          height:18px;
-          background:#ddd;
-          border-radius:10px;
-          overflow:hidden;
-          margin:15px auto 8px auto;
-        ">
-          <div
-            id="downloadProgressBar"
-            style="
-              width:0%;
-              height:100%;
-              transition:width 0.3s ease;
-            "
-          ></div>
-        </div>
+if (existingProgress) {
+  existingProgress.remove();
+}
 
-        <div id="downloadProgressText">
-          Conversion in progress… 0%
-        </div>
-      `;
+const progressUI = document.createElement("div");
 
+progressUI.id = "downloadProgressUI";
+
+progressUI.innerHTML = `
+  <strong>Converting to ${quality} kbps…</strong>
+
+  <div style="
+    width:100%;
+    max-width:420px;
+    height:18px;
+    background:#ddd;
+    border-radius:10px;
+    overflow:hidden;
+    margin:15px auto 8px auto;
+  ">
+    <div
+      id="downloadProgressBar"
+      style="
+        width:0%;
+        height:100%;
+        transition:width 0.3s ease;
+      "
+    ></div>
+  </div>
+
+  <div id="downloadProgressText">
+    Conversion in progress… 0%
+  </div>
+`;
+
+extractResult.prepend(progressUI);
+      
       try {
 
         const response = await fetch(
@@ -665,21 +678,28 @@ downloadAudioBtn.addEventListener("click", () => {
 
                 downloadLink.click();
 
-                downloadLink.remove();
+downloadLink.remove();
 
-                document
-                  .querySelectorAll(".quality-download")
-                  .forEach(btn => {
-                    btn.disabled = false;
-                  });
+document
+  .querySelectorAll(".quality-download")
+  .forEach(btn => {
+    btn.disabled = false;
+  });
 
-                extractResult.innerHTML = `
-                  <strong>
-                    Download complete — choose another quality if you want.
-                  </strong>
-                `;
+const progressUI =
+  document.getElementById("downloadProgressUI");
 
-              }, 500);
+if (progressUI) {
+  progressUI.innerHTML = `
+    <strong>
+      Download complete — choose another quality?
+    </strong>
+  `;
+
+  setTimeout(() => {
+    progressUI.remove();
+  }, 2000);
+}
 
             }
 
