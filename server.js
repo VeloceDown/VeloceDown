@@ -23,6 +23,7 @@ const upload = multer({
 const files = new Map();
 const jobs = new Map();
 const downloadJobs = new Map();
+const videoJobs = new Map();
 
 function safeFilename(name) {
   return (name || "VeloceDown audio")
@@ -719,6 +720,338 @@ app.get("/api/info", async (req, res) => {
   }
 
 });
+
+// ============================================================
+// VIDEO DOWNLOAD
+//
+// Downloads the best available video/audio combination,
+// merges it into MP4, and reports progress.
+// ============================================================
+
+app.get("/api/video-download", async (req, res) => {
+
+  const url =
+    String(req.query.url || "").trim();
+
+  if (!/^https?:\/\//i.test(url)) {
+
+    return res.status(400).json({
+      error: "Please enter a valid video URL."
+    });
+
+  }
+
+  const videoJobId =
+    crypto.randomBytes(24).toString("hex");
+
+  const videoToken =
+    crypto.randomBytes(16).toString("hex");
+
+  const outputPath =
+    path.join(
+      outputDir,
+      `${videoToken}.mp4`
+    );
+
+  videoJobs.set(videoJobId, {
+    progress: 0,
+    status: "downloading",
+    error: null,
+    outputPath: outputPath,
+    filename: "VeloceDown Video.mp4"
+  });
+
+  res.json({
+    jobId: videoJobId
+  });
+
+  try {
+
+    const youtubedl =
+      require("youtube-dl-exec");
+
+    const subprocess =
+      youtubedl.exec(
+        url,
+        {
+          format: "bestvideo*+bestaudio/best",
+
+          mergeOutputFormat: "mp4",
+
+          output: outputPath,
+
+          noWarnings: true,
+
+          noCheckCertificates: true,
+
+          newline: true,
+
+          progress: true
+        }
+      );
+
+    let outputBuffer = "";
+
+    subprocess.stdout.on("data", data => {
+
+      outputBuffer +=
+        data.toString();
+
+      const lines =
+        outputBuffer.split("\n");
+
+      outputBuffer = lines.pop();
+
+      for (const line of lines) {
+
+        const match =
+          line.match(/(\d+(?:\.\d+)?)%/);
+
+        if (!match) {
+          continue;
+        }
+
+        const percent =
+          Math.min(
+            99,
+            Math.max(
+              0,
+              Math.round(
+                Number(match[1])
+              )
+            )
+          );
+
+        const job =
+          videoJobs.get(videoJobId);
+
+        if (job) {
+          job.progress = percent;
+        }
+
+      }
+
+    });
+
+    subprocess.stderr.on("data", data => {
+
+      // yt-dlp may write progress and diagnostics
+      // to stderr depending on the source.
+
+      const text =
+        data.toString();
+
+      const matches =
+        text.match(
+          /(\d+(?:\.\d+)?)%/g
+        );
+
+      if (!matches || !matches.length) {
+        return;
+      }
+
+      const lastMatch =
+        matches[matches.length - 1];
+
+      const percent =
+        Math.min(
+          99,
+          Math.max(
+            0,
+            Math.round(
+              parseFloat(
+                lastMatch
+              )
+            )
+          )
+        );
+
+      const job =
+        videoJobs.get(videoJobId);
+
+      if (job) {
+        job.progress = percent;
+      }
+
+    });
+
+    subprocess.on("error", error => {
+
+      console.error(
+        "Video download error:",
+        error
+      );
+
+      fs.unlink(
+        outputPath,
+        () => {}
+      );
+
+      const job =
+        videoJobs.get(videoJobId);
+
+      if (job) {
+
+        job.progress = 0;
+        job.status = "error";
+        job.error =
+          "Could not download the video.";
+
+      }
+
+    });
+
+    subprocess.on("close", code => {
+
+      const job =
+        videoJobs.get(videoJobId);
+
+      if (!job) {
+        return;
+      }
+
+      if (
+        code !== 0 ||
+        !fs.existsSync(outputPath)
+      ) {
+
+        console.error(
+          "yt-dlp video download failed:",
+          code
+        );
+
+        fs.unlink(
+          outputPath,
+          () => {}
+        );
+
+        job.progress = 0;
+        job.status = "error";
+        job.error =
+          "Could not download the video.";
+
+        return;
+      }
+
+      job.progress = 100;
+      job.status = "complete";
+      job.error = null;
+      job.url =
+        `/api/video-download-file/${videoJobId}`;
+
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Could not start video download:",
+      error
+    );
+
+    fs.unlink(
+      outputPath,
+      () => {}
+    );
+
+    const job =
+      videoJobs.get(videoJobId);
+
+    if (job) {
+
+      job.progress = 0;
+      job.status = "error";
+      job.error =
+        "Could not start video download.";
+
+    }
+
+  }
+
+});
+
+
+// ============================================================
+// VIDEO DOWNLOAD PROGRESS
+// ============================================================
+
+app.get(
+  "/api/video-download-progress/:jobId",
+  (req, res) => {
+
+    const job =
+      videoJobs.get(req.params.jobId);
+
+    if (!job) {
+
+      return res.status(404).json({
+        error: "Video download job not found."
+      });
+
+    }
+
+    res.json({
+      progress: job.progress,
+      status: job.status,
+      error: job.error,
+      url: job.url || null
+    });
+
+  }
+);
+
+
+// ============================================================
+// SEND COMPLETED VIDEO
+// ============================================================
+
+app.get(
+  "/api/video-download-file/:jobId",
+  (req, res) => {
+
+    const job =
+      videoJobs.get(req.params.jobId);
+
+    if (
+      !job ||
+      job.status !== "complete" ||
+      !job.outputPath ||
+      !fs.existsSync(job.outputPath)
+    ) {
+
+      return res.status(404).send(
+        "Video file not found or expired."
+      );
+
+    }
+
+    res.download(
+      job.outputPath,
+      job.filename,
+      error => {
+
+        fs.unlink(
+          job.outputPath,
+          () => {}
+        );
+
+        videoJobs.delete(
+          req.params.jobId
+        );
+
+        if (error) {
+
+          console.error(
+            "Video download error:",
+            error
+          );
+
+        }
+
+      }
+    );
+
+  }
+);
 
 // ============================================================
 // PROGRESS
