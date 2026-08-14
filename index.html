@@ -852,14 +852,227 @@ const data = await response.json();
 
 if (!response.ok) throw new Error(data.error || "Could not inspect URL.");
 
-formats.innerHTML = `<strong>Available options</strong><div style="margin-top:12px;display:grid;gap:8px">${
-data.formats.map(f =>
-`<button class="secondary" type="button" style="width:100%" onclick="alert('This source adapter will be connected in the next build.')">${f.label} — ${f.ext}${f.requiresAd ? " • HD/ad gate" : ""}</button>`
-).join("")
-}</div>`;
+formats.innerHTML = `
+  <strong>Video found</strong>
+
+  <div style="
+    margin-top:12px;
+    display:grid;
+    gap:8px;
+  ">
+
+    <button
+      class="primary"
+      type="button"
+      id="downloadVideoBtn"
+      style="width:100%;"
+    >
+      Download MP4
+    </button>
+
+  </div>
+`;
 
 formats.classList.remove("hidden");
 
+  const downloadVideoBtn =
+  $("downloadVideoBtn");
+
+downloadVideoBtn.addEventListener(
+  "click",
+  async () => {
+
+    downloadVideoBtn.disabled = true;
+
+    formats.innerHTML = `
+      <strong>Preparing video download…</strong>
+
+      <div style="
+        width:100%;
+        height:18px;
+        background:#202c45;
+        border-radius:20px;
+        overflow:hidden;
+        margin-top:15px;
+      ">
+        <div
+          id="videoDownloadProgressFill"
+          style="
+            width:0%;
+            height:100%;
+            background:#35d5c6;
+            transition:width .2s ease;
+          "
+        ></div>
+      </div>
+
+      <div
+        id="videoDownloadProgressText"
+        style="
+          margin-top:8px;
+          text-align:center;
+          color:#9eabc5;
+          font-size:14px;
+        "
+      >
+        Starting download… 0%
+      </div>
+    `;
+
+    try {
+
+      const response =
+        await fetch(
+          `/api/video-download?url=${encodeURIComponent(url)}`
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          "Could not start video download."
+        );
+      }
+
+      const jobId =
+        data.jobId;
+
+      const checkVideoProgress =
+        async () => {
+
+          try {
+
+            const progressResponse =
+              await fetch(
+                `/api/video-download-progress/${jobId}`
+              );
+
+            const progress =
+              await progressResponse.json();
+
+            if (!progressResponse.ok) {
+              throw new Error(
+                progress.error ||
+                "Could not read download progress."
+              );
+            }
+
+            const progressFill =
+              $("videoDownloadProgressFill");
+
+            const progressText =
+              $("videoDownloadProgressText");
+
+            const percent =
+              Number(progress.progress) || 0;
+
+            if (progressFill) {
+
+              progressFill.style.width =
+                `${percent}%`;
+
+            }
+
+            if (progressText) {
+
+              progressText.textContent =
+                `Downloading MP4… ${percent}%`;
+
+            }
+
+            if (
+              progress.status === "complete"
+            ) {
+
+              if (progressFill) {
+                progressFill.style.width = "100%";
+              }
+
+              if (progressText) {
+
+                progressText.textContent =
+                  "Download ready. Starting download…";
+
+              }
+
+              const downloadLink =
+                document.createElement("a");
+
+              downloadLink.href =
+                progress.url;
+
+              document.body.appendChild(
+                downloadLink
+              );
+
+              downloadLink.click();
+
+              downloadLink.remove();
+
+              formats.innerHTML = `
+                <strong>
+                  Video download complete.
+                </strong>
+              `;
+
+              return;
+            }
+
+            if (
+              progress.status === "error"
+            ) {
+
+              throw new Error(
+                progress.error ||
+                "Video download failed."
+              );
+
+            }
+
+            setTimeout(
+              checkVideoProgress,
+              500
+            );
+
+          } catch (error) {
+
+            console.error(
+              "Video download progress error:",
+              error
+            );
+
+            formats.innerHTML = `
+              <strong class="error">
+                ${error.message}
+              </strong>
+            `;
+
+          }
+
+        };
+
+      checkVideoProgress();
+
+    } catch (error) {
+
+      console.error(
+        "Video download error:",
+        error
+      );
+
+      formats.innerHTML = `
+        <strong class="error">
+          ${error.message}
+        </strong>
+      `;
+
+    }
+
+  }
+);
+  
 status.textContent = "";
 
 } catch (err) {
