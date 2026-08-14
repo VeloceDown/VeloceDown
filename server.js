@@ -630,6 +630,97 @@ app.get("/api/download-file/:jobId", (req, res) => {
 });
 
 // ============================================================
+// VIDEO URL INFO
+//
+// Inspect a supported video URL and return available formats.
+// Does NOT download the video.
+// ============================================================
+
+app.get("/api/info", async (req, res) => {
+
+  const url =
+    String(req.query.url || "").trim();
+
+  if (!/^https?:\/\//i.test(url)) {
+
+    return res.status(400).json({
+      error: "Please enter a valid video URL."
+    });
+
+  }
+
+  try {
+
+    const { exec } =
+      require("youtube-dl-exec");
+
+    const info =
+      await exec(url, {
+        dumpSingleJson: true,
+        noWarnings: true,
+        skipDownload: true,
+        noCheckCertificates: true
+      });
+
+    const formats =
+      (info.formats || [])
+        .filter(format =>
+          format.vcodec !== "none" ||
+          format.acodec !== "none"
+        )
+        .map(format => ({
+
+          id: format.format_id,
+
+          label:
+            format.format_note ||
+            format.resolution ||
+            format.format_id,
+
+          ext:
+            format.ext || "",
+
+          resolution:
+            format.resolution || "",
+
+          filesize:
+            format.filesize || null,
+
+          vcodec:
+            format.vcodec || "none",
+
+          acodec:
+            format.acodec || "none"
+
+        }));
+
+    res.json({
+      title:
+        info.title || "VeloceDown video",
+
+      duration:
+        info.duration || 0,
+
+      formats
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Video information error:",
+      error
+    );
+
+    res.status(500).json({
+      error:
+        "Could not read video information from this URL."
+    });
+
+  }
+
+});
+
+// ============================================================
 // PROGRESS
 // ============================================================
 
