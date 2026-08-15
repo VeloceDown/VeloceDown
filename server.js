@@ -775,7 +775,7 @@ app.get("/api/video-download", async (req, res) => {
   : 360;
 
 const formatSelector =
-  `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]`;
+  `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
 
 const subprocess =
   youtubedl.exec(
