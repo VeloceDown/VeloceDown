@@ -775,6 +775,9 @@ app.get("/api/video-download", async (req, res) => {
   : 360;
 
 const formatSelector =
+  `best[height<=${quality}]`;
+
+const subprocess =
   `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
 
 const subprocess =
