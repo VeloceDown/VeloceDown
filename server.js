@@ -770,25 +770,32 @@ app.get("/api/video-download", async (req, res) => {
     const youtubedl =
       require("youtube-dl-exec");
 
-    const subprocess =
-      youtubedl.exec(
-        url,
-        {
-          format: "bestvideo*+bestaudio/best",
+    const quality = req.query.quality === "hd"
+  ? 720
+  : 360;
 
-          mergeOutputFormat: "mp4",
+const formatSelector =
+  `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]`;
 
-          output: outputPath,
+const subprocess =
+  youtubedl.exec(
+    url,
+    {
+      format: formatSelector,
 
-          noWarnings: true,
+      mergeOutputFormat: "mp4",
 
-          noCheckCertificates: true,
+      output: outputPath,
 
-          newline: true,
+      noWarnings: true,
 
-          progress: true
-        }
-      );
+      noCheckCertificates: true,
+
+      newline: true,
+
+      progress: true
+    }
+  );
 
     let outputBuffer = "";
 
