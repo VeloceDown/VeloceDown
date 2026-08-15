@@ -768,37 +768,35 @@ app.get("/api/video-download", async (req, res) => {
   try {
 
     const youtubedl =
-  require("yt-dlp-exec");
+      require("yt-dlp-exec");
 
-    const quality = req.query.quality === "hd"
-  ? 720
-  : 360;
+    const quality =
+      req.query.quality === "hd"
+        ? 720
+        : 360;
 
-const formatSelector =
-  `best[height<=${quality}]`;
+    const formatSelector =
+      `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
 
-const subprocess =
-  `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
+    const subprocess =
+      youtubedl.exec(
+        url,
+        {
+          format: formatSelector,
 
-const subprocess =
-  youtubedl.exec(
-    url,
-    {
-      format: formatSelector,
+          mergeOutputFormat: "mp4",
 
-      mergeOutputFormat: "mp4",
+          output: outputPath,
 
-      output: outputPath,
+          noWarnings: true,
 
-      noWarnings: true,
+          noCheckCertificates: true,
 
-      noCheckCertificates: true,
+          newline: true,
 
-      newline: true,
-
-      progress: true
-    }
-  );
+          progress: true
+        }
+      );
 
     let outputBuffer = "";
 
