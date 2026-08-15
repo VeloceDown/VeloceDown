@@ -839,13 +839,13 @@ app.get("/api/video-download", async (req, res) => {
   require("youtube-dl-exec");
 
     const quality =
-      req.query.quality === "hd"
-        ? 720
-        : 360;
+  req.query.quality === "hd"
+    ? "hd"
+    : "sd";
 
-    const formatSelector =
-      `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
-
+const formatSelector =
+  quality;
+    
     const subprocess =
       youtubedl.exec(
         url,
