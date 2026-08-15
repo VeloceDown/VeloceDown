@@ -768,7 +768,7 @@ app.get("/api/video-download", async (req, res) => {
   try {
 
     const youtubedl =
-      require("youtube-dl-exec");
+  require("yt-dlp-exec");
 
     const quality = req.query.quality === "hd"
   ? 720
