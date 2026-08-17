@@ -36,6 +36,12 @@ function safeFilename(name) {
 
 const allowedQualities = ["128", "192", "256", "320"];
 
+// Explicitly serve sitemap for Google Search Console
+app.get("/sitemap.xml", (req, res) => {
+  res.set("Content-Type", "text/xml; charset=utf-8");
+  res.sendFile(path.join(__dirname, "sitemap.xml"));
+});
+
 app.use(express.static(__dirname));
 
 
