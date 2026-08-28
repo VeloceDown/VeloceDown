@@ -614,15 +614,6 @@ app.get("/api/download-file/:jobId", (req, res) => {
     job.filename,
     error => {
 
-      fs.unlink(
-        job.outputPath,
-        () => {}
-      );
-
-      downloadJobs.delete(
-        req.params.jobId
-      );
-
       if (error) {
 
         console.error(
@@ -1109,7 +1100,8 @@ app.get("/api/progress/:token", (req, res) => {
 // ============================================================
 // CLEANUP
 //
-// Remove old FLAC master files after 30 minutes.
+// Remove old FLAC master files and completed MP3 downloads
+// after 30 minutes.
 // ============================================================
 
 setInterval(() => {
@@ -1118,7 +1110,7 @@ setInterval(() => {
     Date.now() -
     30 * 60 * 1000;
 
-
+  // Clean up source FLAC masters
   for (const [token, item] of files) {
 
     if (item.created < cutoff) {
@@ -1131,8 +1123,39 @@ setInterval(() => {
 
   }
 
-}, 5 * 60 * 1000);
+  // Clean up converted MP3 downloads
+  for (const [jobId, job] of downloadJobs) {
 
+    if (
+      job.outputPath &&
+      fs.existsSync(job.outputPath)
+    ) {
+
+      const createdTime =
+        fs.statSync(job.outputPath).mtimeMs;
+
+      if (createdTime < cutoff) {
+
+        fs.unlink(
+          job.outputPath,
+          () => {}
+        );
+
+        downloadJobs.delete(jobId);
+
+      }
+
+    } else if (
+      job.status === "complete"
+    ) {
+
+      downloadJobs.delete(jobId);
+
+    }
+
+  }
+
+}, 5 * 60 * 1000);
 
 // ============================================================
 // ERROR HANDLER
